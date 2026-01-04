@@ -29,6 +29,14 @@ type User struct {
 	Email     string    `json:"email"`
 }
 
+type Chirp struct {
+	ID        uuid.UUID `json:"id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+	Body      string    `json:"body"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
 func main() {
 	const filepathRoot = "."
 	const port = "8080"
@@ -59,13 +67,14 @@ func main() {
 	mux.Handle("/app/assets/", apiCfg.middlewareMetricsInc(http.StripPrefix("/app/assets/", http.FileServer(http.Dir("./assets")))))
 
 	mux.HandleFunc("GET /api/healthz", handlerHealthz)
-	mux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
+	//mux.HandleFunc("POST /api/validate_chirp", handlerChirpsValidate)
 
 	// mux.HandleFunc("GET /api/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerAdminMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handlerCreateUsers)
+	mux.HandleFunc("POST /api/chirps", apiCfg.handlerCreateChirps)
 
 	srv := &http.Server{
 		Addr:    ":" + port,

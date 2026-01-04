@@ -4,14 +4,15 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"github.com/google/uuid"
+	"github.com/kamareee/chirpy-bootdev/internal/database"
 )
 
-func handlerChirpsValidate(w http.ResponseWriter, r *http.Request) {
+func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request) {
 	type parameters struct {
-		Body string `json:"body"`
-	}
-	type returnVals struct {
-		CleanedBody string `json:"cleaned_body"`
+		Body   string `json:"body"`
+		UserID string `json:"user_id"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -35,9 +36,26 @@ func handlerChirpsValidate(w http.ResponseWriter, r *http.Request) {
 	}
 	cleaned := getCleandBody(params.Body, badwords)
 
-	respondWithJSON(w, http.StatusOK, returnVals{
-		CleanedBody: cleaned,
+	userID, err := uuid.Parse(params.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid user ID", err)
+		return
+	}
+
+	chirp, err := cfg.db.CreateChirp(r.Context(), database.CreateChirpParams{
+		Body:   cleaned,
+		UserID: userID,
 	})
+
+	payload := Chirp{
+		ID:        chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body:      chirp.Body,
+		UserID:    chirp.UserID,
+	}
+
+	respondWithJSON(w, http.StatusCreated, payload)
 }
 
 func getCleandBody(body string, badWords map[string]struct{}) string {
