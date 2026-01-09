@@ -21,6 +21,7 @@ type apiConfig struct {
 	fileServerHits atomic.Int32
 	db             *database.Queries
 	platform       string
+	jwtSecret      string
 }
 
 type User struct {
@@ -48,6 +49,7 @@ func main() {
 	}
 	dbURL := os.Getenv("DB_URL")
 	platform := os.Getenv("PLATFORM")
+	jwtSecret := os.Getenv("JWT_SECRET")
 
 	dbConn, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -61,6 +63,7 @@ func main() {
 		fileServerHits: atomic.Int32{},
 		db:             dbQueries,
 		platform:       platform,
+		jwtSecret:      jwtSecret,
 	}
 
 	mux := http.NewServeMux()
@@ -91,9 +94,18 @@ func main() {
 
 // Handler functions
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
+	// parameters represents the request payload for user authentication or token refresh operations.
+	// It contains the user's credentials and optional token expiration settings.
+	//
+	// Fields:
+	//   - Password: The user's password for authentication (required)
+	//   - Email: The user's email address for identification (required)
+	//   - ExpiresInSeconds: Optional pointer to the desired token expiration time in seconds.
+	//     If nil, a default expiration time will be used by the server.
 	type parameters struct {
-		Password string `json:"password"`
-		Email    string `json:"email"`
+		Password         string `json:"password"`
+		Email            string `json:"email"`
+		ExpiresInSeconds *int64 `json:"expires_in_seconds"`
 	}
 
 	type UserwithPassword struct {
@@ -112,6 +124,13 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set expiration time: default 1 hour, max 1 hour
+	// Avoid null pointer dereference
+	expiresInSeconds := int64(60 * 60) // Default 1 hour
+	if params.ExpiresInSeconds != nil {
+		expiresInSeconds = min(*params.ExpiresInSeconds, 60*60)
+	}
+
 	user, err := cfg.db.GetUserByEmail(r.Context(), params.Email)
 	if err != nil {
 		respondWithError(w, http.StatusUnauthorized, "Invalid email or password", err)
@@ -123,11 +142,27 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusUnauthorized, "Invalid email or password", err)
 		return
 	}
-	payload := User{
-		ID:        user.ID,
-		CreatedAt: user.CreatedAt,
-		UpdatedAt: user.UpdatedAt,
-		Email:     user.Email,
+
+	// Generate JWT token
+	token, err := auth.MakeJWT(user.ID, cfg.jwtSecret, time.Duration(expiresInSeconds)*time.Second)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to generate token", err)
+		return
+	}
+
+	type response struct {
+		User
+		Token string `json:"token"`
+	}
+
+	payload := response{
+		User: User{
+			ID:        user.ID,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email:     user.Email,
+		},
+		Token: token,
 	}
 	respondWithJSON(w, http.StatusOK, payload)
 }
