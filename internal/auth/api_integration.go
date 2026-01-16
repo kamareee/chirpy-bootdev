@@ -1,0 +1,14 @@
+package auth
+
+import (
+	"net/http"
+	"strings"
+)
+
+func GetAPIKey(headers http.Header) (string, error) {
+	bearerStr := strings.Split(headers.Get("Authorization"), " ")
+	if len(bearerStr) != 2 || bearerStr[0] != "ApiKey" {
+		return "", http.ErrNoCookie
+	}
+	return bearerStr[1], nil
+}

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/kamareee/chirpy-bootdev/internal/auth"
 	"github.com/kamareee/chirpy-bootdev/internal/database"
 )
@@ -66,6 +67,51 @@ func (cfg *apiConfig) handlerCreateChirps(w http.ResponseWriter, r *http.Request
 	}
 
 	respondWithJSON(w, http.StatusCreated, payload)
+}
+
+func (cfg *apiConfig) handlerDeleteChirp(w http.ResponseWriter, r *http.Request) {
+	// Extract and validate JWT token
+	token, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Missing or invalid authorization header", err)
+		return
+	}
+
+	userID, err := auth.ValidateJWT(token, cfg.jwtSecret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "Invalid token", err)
+		return
+	}
+
+	// Parse chirp ID from URL
+	chirpIDStr := r.PathValue("chirpID")
+	chirpID, err := uuid.Parse(chirpIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusBadRequest, "Invalid chirp ID", err)
+		return
+	}
+
+	// Get the chirp to check if it exists and if the user is the author
+	chirp, err := cfg.db.GetChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Chirp not found", err)
+		return
+	}
+
+	// Check if the user is the author of the chirp
+	if chirp.UserID != userID {
+		respondWithError(w, http.StatusForbidden, "You are not authorized to delete this chirp", nil)
+		return
+	}
+
+	// Delete the chirp
+	err = cfg.db.DeleteChirp(r.Context(), chirpID)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed to delete chirp", err)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func getCleandBody(body string, badWords map[string]struct{}) string {

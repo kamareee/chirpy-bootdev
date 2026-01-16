@@ -53,17 +53,19 @@ func (cfg *apiConfig) handlerUpdateUsers(w http.ResponseWriter, r *http.Request)
 	}
 
 	type User struct {
-		ID        uuid.UUID `json:"id"`
-		CreatedAt time.Time `json:"created_at"`
-		UpdatedAt time.Time `json:"updated_at"`
-		Email     string    `json:"email"`
+		ID          uuid.UUID `json:"id"`
+		CreatedAt   time.Time `json:"created_at"`
+		UpdatedAt   time.Time `json:"updated_at"`
+		Email       string    `json:"email"`
+		IsChirpyRed bool      `json:"is_chirpy_red"`
 	}
 
 	payload := User{
-		ID:        returnedUser.ID,
-		CreatedAt: returnedUser.CreatedAt,
-		UpdatedAt: returnedUser.UpdatedAt,
-		Email:     returnedUser.Email,
+		ID:          returnedUser.ID,
+		CreatedAt:   returnedUser.CreatedAt,
+		UpdatedAt:   returnedUser.UpdatedAt,
+		Email:       returnedUser.Email,
+		IsChirpyRed: returnedUser.IsChirpyRed,
 	}
 
 	respondWithJSON(w, http.StatusOK, payload)
