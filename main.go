@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -255,13 +256,34 @@ func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, r *http.Request) {
 }
 
 func (cfg *apiConfig) handlerListChirps(w http.ResponseWriter, r *http.Request) {
-	chirps, err := cfg.db.ListChirps(r.Context())
+	var dbChirps []database.Chirp
+	var err error
+
+	authorIDStr := r.URL.Query().Get("author_id")
+	if authorIDStr != "" {
+		authorID, parseErr := uuid.Parse(authorIDStr)
+		if parseErr != nil {
+			respondWithError(w, http.StatusBadRequest, "Invalid author_id", parseErr)
+			return
+		}
+		dbChirps, err = cfg.db.ListChirpsByAuthor(r.Context(), authorID)
+	} else {
+		dbChirps, err = cfg.db.ListChirps(r.Context())
+	}
+
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Database error. Couldn't list chirps", err)
 		return
 	}
+
+	if r.URL.Query().Get("sort") == "desc" {
+		sort.Slice(dbChirps, func(i, j int) bool {
+			return dbChirps[i].CreatedAt.After(dbChirps[j].CreatedAt)
+		})
+	}
+
 	var payload []Chirp
-	for _, c := range chirps {
+	for _, c := range dbChirps {
 		payload = append(payload, Chirp{
 			ID:        c.ID,
 			CreatedAt: c.CreatedAt,
